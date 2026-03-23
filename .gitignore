@@ -34,7 +34,7 @@ data/
 *.sqlite
 
 # built binaries and objects
-sentinel
+/sentinel
 *.o
 
 # Editor/IDE
