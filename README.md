@@ -107,7 +107,7 @@ can still be worked on outside Linux.
 On Debian/Ubuntu systems:
 
 ```bash
-sudo apt install -y clang llvm libbpf-dev linux-headers-$(uname -r)
+sudo apt install -y golang-go clang llvm libbpf-dev linux-headers-$(uname -r)
 ```
 
 The repository includes a helper target for that:
@@ -115,6 +115,9 @@ The repository includes a helper target for that:
 ```bash
 make install
 ```
+
+`make install` installs the system toolchain only. It includes Go so `make build`
+can succeed, but it does not build the project by itself.
 
 ## Installation
 
