@@ -102,12 +102,12 @@ can still be worked on outside Linux.
 - `clang`
 - `llvm`
 - `libbpf-dev`
-- Linux kernel headers matching the running kernel
+- Linux kernel headers matching the running kernel, if your distro publishes them
 
 On Debian/Ubuntu systems:
 
 ```bash
-sudo apt install -y golang-go clang llvm libbpf-dev linux-headers-$(uname -r)
+sudo apt install -y golang-go clang llvm libbpf-dev
 ```
 
 The repository includes a helper target for that:
@@ -118,6 +118,24 @@ make install
 
 `make install` installs the system toolchain only. It includes Go so `make build`
 can succeed, but it does not build the project by itself.
+
+If your distribution publishes matching kernel headers, you can install them
+separately:
+
+```bash
+sudo apt install -y linux-headers-$(uname -r)
+```
+
+Or use:
+
+```bash
+make install-headers
+```
+
+Some Raspberry Pi and vendor kernels use custom version strings whose matching
+`linux-headers-$(uname -r)` package is not present in the default `apt` repos.
+In that case, install the core toolchain above first and only add headers if
+your BPF build actually requires them.
 
 ## Installation
 
@@ -390,6 +408,28 @@ Check:
 - required packages are installed
 - tracepoints are available
 - the eBPF object was compiled on the target Linux environment
+
+### `linux-headers-$(uname -r)` cannot be located
+
+That usually means your system is running a vendor or custom kernel whose exact
+header package is not available from the configured repositories.
+
+Start with the core build toolchain:
+
+```bash
+sudo apt install -y golang-go clang llvm libbpf-dev
+```
+
+Then retry:
+
+```bash
+make build
+make build-bpf
+```
+
+If the BPF build still needs headers, install the matching header package from
+your vendor's repository or kernel source package instead of assuming the
+default Debian/Ubuntu package name exists.
 
 Useful inspection commands:
 

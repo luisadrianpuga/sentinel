@@ -162,6 +162,7 @@ This removes the biggest friction point for adoption.
 - sudo access (eBPF needs kernel privileges to load)
 - Go 1.21+
 - clang + libbpf (installed via `make install`)
+- matching kernel headers if your distro publishes them
 
 **No restart. No kernel modules. No permanent changes.**
 
@@ -200,8 +201,18 @@ cat /proc/sys/kernel/perf_event_paranoid  # ideally <= 2
 ## Step 1 — install tools on Pi
 
 ```bash
-sudo apt install -y clang llvm libbpf-dev linux-headers-$(uname -r)
+sudo apt install -y golang-go clang llvm libbpf-dev
 ```
+
+If your distro exposes matching kernel headers, install them separately:
+
+```bash
+sudo apt install -y linux-headers-$(uname -r)
+```
+
+On Raspberry Pi or other vendor kernels, that package name may not exist in the
+default repositories. Install the core toolchain first and only chase headers if
+the BPF build specifically requires them.
 
 ## Step 1b — set up .gitignore before writing any code
 
