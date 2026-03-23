@@ -202,7 +202,7 @@ func decodeEvent(sample []byte) (Event, error) {
 	}
 
 	event := Event{
-		Timestamp: time.Unix(0, int64(raw.Timestamp)),
+		Timestamp: time.Now(),
 		PID:       int(raw.PID),
 		Comm:      cString(raw.Comm[:]),
 		Syscall:   cString(raw.Syscall[:]),

@@ -124,7 +124,7 @@ func (s *Store) InsertEvent(ctx context.Context, event Event) error {
 		s.placeholder(5),
 		s.placeholder(6),
 	)
-	_, err := s.db.ExecContext(ctx, stmt, event.Timestamp, event.PID, event.Comm, event.Syscall, event.Arg, nullIfEmpty(event.AgentRun))
+	_, err := s.db.ExecContext(ctx, stmt, event.Timestamp.UTC().Format(time.RFC3339Nano), event.PID, event.Comm, event.Syscall, event.Arg, nullIfEmpty(event.AgentRun))
 	return err
 }
 
@@ -170,9 +170,11 @@ func (s *Store) Query(ctx context.Context, filter QueryFilter) ([]Event, error) 
 	var events []Event
 	for rows.Next() {
 		var event Event
-		if err := rows.Scan(&event.ID, &event.Timestamp, &event.PID, &event.Comm, &event.Syscall, &event.Arg, &event.AgentRun); err != nil {
+		var tsStr string
+		if err := rows.Scan(&event.ID, &tsStr, &event.PID, &event.Comm, &event.Syscall, &event.Arg, &event.AgentRun); err != nil {
 			return nil, err
 		}
+		event.Timestamp, _ = time.Parse(time.RFC3339Nano, tsStr)
 		events = append(events, event)
 	}
 	return events, rows.Err()
