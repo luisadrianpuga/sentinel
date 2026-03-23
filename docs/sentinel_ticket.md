@@ -160,7 +160,7 @@ This removes the biggest friction point for adoption.
 
 - Linux kernel 5.8+ (Ubuntu 20.04+, Debian 11+)
 - sudo access (eBPF needs kernel privileges to load)
-- Go 1.21+
+- Go 1.23+
 - clang + libbpf (installed via `make install`)
 - matching kernel headers if your distro publishes them
 

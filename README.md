@@ -98,7 +98,7 @@ can still be worked on outside Linux.
 
 ### Build requirements
 
-- Go 1.21+
+- Go 1.23+
 - `clang`
 - `llvm`
 - `libbpf-dev`
