@@ -439,6 +439,106 @@ ls /sys/kernel/debug/tracing
 cat /proc/sys/kernel/perf_event_paranoid
 ```
 
+### `golang-go` from apt is too old (Raspberry Pi / Debian)
+
+Debian and Raspberry Pi OS ship `golang-go` at Go 1.19. This project requires
+Go 1.23+. Running `apt install golang-go` installs the wrong version and
+`go build` will fail with a directive error.
+
+Check what version you have:
+
+```bash
+go version
+```
+
+If the output is below `go1.23`, remove the system package and install Go
+manually:
+
+```bash
+sudo apt remove golang-go
+```
+
+Download the correct archive for your architecture. For Raspberry Pi (64-bit):
+
+```bash
+wget https://go.dev/dl/go1.23.8.linux-arm64.tar.gz
+sudo tar -C /usr/local -xzf go1.23.8.linux-arm64.tar.gz
+```
+
+For 32-bit Pi OS (uncommon but possible):
+
+```bash
+wget https://go.dev/dl/go1.23.8.linux-armv6l.tar.gz
+sudo tar -C /usr/local -xzf go1.23.8.linux-armv6l.tar.gz
+```
+
+Add Go to your PATH:
+
+```bash
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
+source ~/.profile
+```
+
+Verify:
+
+```bash
+go version
+# should print: go version go1.23.x linux/arm64
+```
+
+Then build normally:
+
+```bash
+make build
+```
+
+### Module resolution fails: `cannot find module providing ...`
+
+If `go build` or `make build` reports something like:
+
+```
+cannot find module providing github.com/luisadrianpuga/sentinel/internal/sentinel
+```
+
+Go is not finding `go.mod`. This means you are either not in the repo root or
+your checkout is incomplete.
+
+Verify your location and module state:
+
+```bash
+pwd
+# should be /home/<user>/sentinel
+
+go env GOMOD
+# should print: /home/<user>/sentinel/go.mod
+# if empty, Go cannot find go.mod — you are in the wrong directory
+```
+
+Check that the internal package exists:
+
+```bash
+ls internal/sentinel
+# should list: config.go  runner_linux.go  runner_other.go  store.go
+```
+
+If `go env GOMOD` is empty, navigate to the repo root and retry:
+
+```bash
+cd ~/sentinel
+go env GOMOD   # should now show the path
+make build
+```
+
+If `internal/sentinel` is missing, your checkout is incomplete:
+
+```bash
+git status
+git rev-parse --abbrev-ref HEAD
+git pull
+```
+
+After pulling, verify the directory exists and retry the build.
+
 ## Roadmap
 
 Logical next steps from the current v1:
