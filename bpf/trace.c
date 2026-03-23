@@ -6,6 +6,14 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
+/* AF_INET/AF_INET6 may not resolve in BPF compilation context */
+#ifndef AF_INET
+#define AF_INET  2
+#endif
+#ifndef AF_INET6
+#define AF_INET6 10
+#endif
+
 #define COMM_LEN 16
 #define SYSCALL_LEN 16
 #define ARG_LEN 256
@@ -104,7 +112,8 @@ int trace_write(struct trace_event_raw_sys_enter *ctx) {
 
     fd = ctx->args[0];
     count = ctx->args[2];
-    bpf_snprintf(evt->arg, sizeof(evt->arg), "fd=%llu bytes=%llu", fd, count);
+    __u64 write_args[2] = {fd, count};
+    bpf_snprintf(evt->arg, sizeof(evt->arg), "fd=%llu bytes=%llu", write_args, sizeof(write_args));
     bpf_ringbuf_submit(evt, 0);
     return 0;
 }
@@ -119,8 +128,10 @@ int trace_connect(struct trace_event_raw_sys_enter *ctx) {
         return 0;
     }
 
+    /* Read sa_family as raw __u16 — bpf_helper_defs.h forward-declares
+     * struct sockaddr without a full definition, so ->sa_family is inaccessible. */
     sa = (const struct sockaddr *)ctx->args[1];
-    bpf_probe_read_user(&family, sizeof(family), &sa->sa_family);
+    bpf_probe_read_user(&family, sizeof(family), (__u16 *)sa);
 
     if (family == AF_INET) {
         struct sockaddr_in addr = {};
@@ -130,27 +141,32 @@ int trace_connect(struct trace_event_raw_sys_enter *ctx) {
         bpf_probe_read_user(&addr, sizeof(addr), sa);
         port = bpf_ntohs(addr.sin_port);
         ip = (__u8 *)&addr.sin_addr.s_addr;
+        __u64 ip4_args[5] = {ip[0], ip[1], ip[2], ip[3], port};
         bpf_snprintf(evt->arg, sizeof(evt->arg), "%d.%d.%d.%d:%d",
-                     ip[0], ip[1], ip[2], ip[3], port);
+                     ip4_args, sizeof(ip4_args));
     } else if (family == AF_INET6) {
         struct sockaddr_in6 addr6 = {};
         __u16 port6;
 
         bpf_probe_read_user(&addr6, sizeof(addr6), sa);
         port6 = bpf_ntohs(addr6.sin6_port);
+        __u64 ip6_args[9] = {
+            bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[0]),
+            bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[1]),
+            bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[2]),
+            bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[3]),
+            bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[4]),
+            bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[5]),
+            bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[6]),
+            bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[7]),
+            port6,
+        };
         bpf_snprintf(evt->arg, sizeof(evt->arg),
                      "[%x:%x:%x:%x:%x:%x:%x:%x]:%d",
-                     bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[0]),
-                     bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[1]),
-                     bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[2]),
-                     bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[3]),
-                     bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[4]),
-                     bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[5]),
-                     bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[6]),
-                     bpf_ntohs(addr6.sin6_addr.in6_u.u6_addr16[7]),
-                     port6);
+                     ip6_args, sizeof(ip6_args));
     } else {
-        bpf_snprintf(evt->arg, sizeof(evt->arg), "family=%d", family);
+        __u64 fam_args[1] = {family};
+        bpf_snprintf(evt->arg, sizeof(evt->arg), "family=%d", fam_args, sizeof(fam_args));
     }
 
     bpf_ringbuf_submit(evt, 0);
