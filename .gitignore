@@ -23,9 +23,19 @@ profile.cov
 # Go workspace file
 go.work
 go.work.sum
+.gocache/
 
 # env file
 .env
+
+# trace logs and DB files
+data/
+*.db
+*.sqlite
+
+# built binaries and objects
+sentinel
+*.o
 
 # Editor/IDE
 # .idea/
