@@ -374,6 +374,8 @@ The current implementation is intentionally narrow and has several important lim
 - there is no packaged installer beyond `make` targets
 - there is no alerting, baseline learning, or policy enforcement yet
 - there are no automated integration tests against a live Linux kernel in this repo
+- sub-millisecond processes (e.g. `echo`) may still exit before the PID filter
+  is armed, producing no events; use `--pid` on a pre-running process for those
 
 If you need child-process tracing, session tree tracking, DNS enrichment, or a
 better behavioral diff, those are natural next steps.
@@ -427,9 +429,15 @@ make build
 make build-bpf
 ```
 
-If the BPF build still needs headers, install the matching header package from
-your vendor's repository or kernel source package instead of assuming the
-default Debian/Ubuntu package name exists.
+If the BPF build still needs headers, try the generic fallback first:
+
+```bash
+sudo apt install -y linux-headers-generic
+```
+
+If that also fails, install the matching header package from your vendor's
+repository or kernel source package instead of assuming the default
+Debian/Ubuntu package name exists.
 
 Useful inspection commands:
 
