@@ -47,9 +47,15 @@ func NewRunner(cfg Config, store *Store) (Runner, error) {
 }
 
 func (r *linuxRunner) Run(ctx context.Context) error {
-	targetPID, waitFn, err := r.resolveTarget(ctx)
-	if err != nil {
-		return err
+	// Prepare the agent command without starting it yet. BPF must be fully
+	// attached before the process starts so that early syscalls (execve,
+	// dynamic linker openat) are not missed.
+	var cmd *exec.Cmd
+	if r.cfg.PID == 0 {
+		cmd = exec.CommandContext(ctx, "sh", "-c", r.cfg.AgentCommand)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
 	}
 
 	spec, err := ebpf.LoadCollectionSpec(r.cfg.BPFObjectPath)
@@ -72,11 +78,6 @@ func (r *linuxRunner) Run(ctx context.Context) error {
 		return errors.New("bpf object missing events map")
 	}
 
-	key := uint32(0)
-	if err := filterMap.Put(key, uint32(targetPID)); err != nil {
-		return fmt.Errorf("configure target pid: %w", err)
-	}
-
 	links, err := attachTracepoints(coll)
 	if err != nil {
 		return err
@@ -88,6 +89,25 @@ func (r *linuxRunner) Run(ctx context.Context) error {
 		return fmt.Errorf("open ring buffer: %w", err)
 	}
 	defer reader.Close()
+
+	// BPF is ready. Now start the agent (or use the supplied PID) and
+	// immediately arm the filter so the very first syscalls are captured.
+	var targetPID int
+	var waitFn func() error
+	if cmd != nil {
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("start agent command: %w", err)
+		}
+		targetPID = cmd.Process.Pid
+		waitFn = func() error { return cmd.Wait() }
+	} else {
+		targetPID = r.cfg.PID
+	}
+
+	key := uint32(0)
+	if err := filterMap.Put(key, uint32(targetPID)); err != nil {
+		return fmt.Errorf("configure target pid: %w", err)
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -143,28 +163,6 @@ func (r *linuxRunner) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (r *linuxRunner) resolveTarget(ctx context.Context) (int, func() error, error) {
-	if r.cfg.PID != 0 {
-		return r.cfg.PID, nil, nil
-	}
-
-	cmd := exec.CommandContext(ctx, "sh", "-c", r.cfg.AgentCommand)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Start(); err != nil {
-		return 0, nil, fmt.Errorf("start agent command: %w", err)
-	}
-	waitFn := func() error {
-		err := cmd.Wait()
-		if err == nil {
-			return nil
-		}
-		return err
-	}
-	return cmd.Process.Pid, waitFn, nil
-}
 
 func attachTracepoints(coll *ebpf.Collection) ([]link.Link, error) {
 	tracepoints := map[string][2]string{
@@ -204,7 +202,7 @@ func decodeEvent(sample []byte) (Event, error) {
 	}
 
 	event := Event{
-		Timestamp: time.Unix(0, int64(raw.Timestamp)),
+		Timestamp: time.Now(),
 		PID:       int(raw.PID),
 		Comm:      cString(raw.Comm[:]),
 		Syscall:   cString(raw.Syscall[:]),
