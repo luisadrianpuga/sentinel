@@ -69,9 +69,9 @@ func (r *linuxRunner) Run(ctx context.Context) error {
 	}
 	defer coll.Close()
 
-	filterMap, ok := coll.Maps["target_pid"]
+	filterMap, ok := coll.Maps["watched_pids"]
 	if !ok {
-		return errors.New("bpf object missing target_pid map")
+		return errors.New("bpf object missing watched_pids map")
 	}
 	eventsMap, ok := coll.Maps["events"]
 	if !ok {
@@ -104,8 +104,9 @@ func (r *linuxRunner) Run(ctx context.Context) error {
 		targetPID = r.cfg.PID
 	}
 
-	key := uint32(0)
-	if err := filterMap.Put(key, uint32(targetPID)); err != nil {
+	key := uint32(targetPID)
+	value := uint8(1)
+	if err := filterMap.Put(key, value); err != nil {
 		return fmt.Errorf("configure target pid: %w", err)
 	}
 
@@ -163,13 +164,22 @@ func (r *linuxRunner) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-
 func attachTracepoints(coll *ebpf.Collection) ([]link.Link, error) {
 	tracepoints := map[string][2]string{
-		"trace_openat":  {"syscalls", "sys_enter_openat"},
-		"trace_connect": {"syscalls", "sys_enter_connect"},
-		"trace_execve":  {"syscalls", "sys_enter_execve"},
-		"trace_write":   {"syscalls", "sys_enter_write"},
+		"trace_openat":       {"syscalls", "sys_enter_openat"},
+		"trace_connect":      {"syscalls", "sys_enter_connect"},
+		"trace_execve":       {"syscalls", "sys_enter_execve"},
+		"trace_write":        {"syscalls", "sys_enter_write"},
+		"trace_sendto":       {"syscalls", "sys_enter_sendto"},
+		"trace_unlink":       {"syscalls", "sys_enter_unlink"},
+		"trace_unlinkat":     {"syscalls", "sys_enter_unlinkat"},
+		"trace_rename":       {"syscalls", "sys_enter_rename"},
+		"trace_renameat":     {"syscalls", "sys_enter_renameat"},
+		"trace_kill":         {"syscalls", "sys_enter_kill"},
+		"trace_clone_exit":   {"syscalls", "sys_exit_clone"},
+		"trace_fork_exit":    {"syscalls", "sys_exit_fork"},
+		"trace_vfork_exit":   {"syscalls", "sys_exit_vfork"},
+		"trace_process_exit": {"sched", "sched_process_exit"},
 	}
 
 	var links []link.Link

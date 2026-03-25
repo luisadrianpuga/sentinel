@@ -1,5 +1,9 @@
 # sentinel
 
+<p align="center">
+  <img src="https://flappy-bird.nyc3.cdn.digitaloceanspaces.com/sentinel_logo.svg" alt="sentinel logo" width="220">
+</p>
+
 `sentinel` is an eBPF-based behavioral monitor for AI agent processes on Linux.
 It attaches kernel tracepoints to a target process, captures syscall activity in
 real time, prints a live event stream, and stores those events for later query
