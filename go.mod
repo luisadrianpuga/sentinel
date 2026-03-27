@@ -1,6 +1,6 @@
 module github.com/luisadrianpuga/sentinel
 
-go 1.23.1
+go 1.23
 
 require (
 	github.com/cilium/ebpf v0.15.0

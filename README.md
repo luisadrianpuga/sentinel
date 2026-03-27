@@ -1,5 +1,9 @@
 # sentinel
 
+<p align="center">
+  <img src="https://flappy-bird.nyc3.cdn.digitaloceanspaces.com/sentinel_logo.svg" alt="sentinel logo" width="220">
+</p>
+
 `sentinel` is an eBPF-based behavioral monitor for AI agent processes on Linux.
 It attaches kernel tracepoints to a target process, captures syscall activity in
 real time, prints a live event stream, and stores those events for later query
@@ -98,16 +102,16 @@ can still be worked on outside Linux.
 
 ### Build requirements
 
-- Go 1.21+
+- Go 1.23+
 - `clang`
 - `llvm`
 - `libbpf-dev`
-- Linux kernel headers matching the running kernel
+- Linux kernel headers matching the running kernel, if your distro publishes them
 
 On Debian/Ubuntu systems:
 
 ```bash
-sudo apt install -y clang llvm libbpf-dev linux-headers-$(uname -r)
+sudo apt install -y golang-go clang llvm libbpf-dev
 ```
 
 The repository includes a helper target for that:
@@ -115,6 +119,27 @@ The repository includes a helper target for that:
 ```bash
 make install
 ```
+
+`make install` installs the system toolchain only. It includes Go so `make build`
+can succeed, but it does not build the project by itself.
+
+If your distribution publishes matching kernel headers, you can install them
+separately:
+
+```bash
+sudo apt install -y linux-headers-$(uname -r)
+```
+
+Or use:
+
+```bash
+make install-headers
+```
+
+Some Raspberry Pi and vendor kernels use custom version strings whose matching
+`linux-headers-$(uname -r)` package is not present in the default `apt` repos.
+In that case, install the core toolchain above first and only add headers if
+your BPF build actually requires them.
 
 ## Installation
 
@@ -353,6 +378,8 @@ The current implementation is intentionally narrow and has several important lim
 - there is no packaged installer beyond `make` targets
 - there is no alerting, baseline learning, or policy enforcement yet
 - there are no automated integration tests against a live Linux kernel in this repo
+- sub-millisecond processes (e.g. `echo`) may still exit before the PID filter
+  is armed, producing no events; use `--pid` on a pre-running process for those
 
 If you need child-process tracing, session tree tracking, DNS enrichment, or a
 better behavioral diff, those are natural next steps.
@@ -388,6 +415,34 @@ Check:
 - tracepoints are available
 - the eBPF object was compiled on the target Linux environment
 
+### `linux-headers-$(uname -r)` cannot be located
+
+That usually means your system is running a vendor or custom kernel whose exact
+header package is not available from the configured repositories.
+
+Start with the core build toolchain:
+
+```bash
+sudo apt install -y golang-go clang llvm libbpf-dev
+```
+
+Then retry:
+
+```bash
+make build
+make build-bpf
+```
+
+If the BPF build still needs headers, try the generic fallback first:
+
+```bash
+sudo apt install -y linux-headers-generic
+```
+
+If that also fails, install the matching header package from your vendor's
+repository or kernel source package instead of assuming the default
+Debian/Ubuntu package name exists.
+
 Useful inspection commands:
 
 ```bash
@@ -395,6 +450,106 @@ uname -r
 ls /sys/kernel/debug/tracing
 cat /proc/sys/kernel/perf_event_paranoid
 ```
+
+### `golang-go` from apt is too old (Raspberry Pi / Debian)
+
+Debian and Raspberry Pi OS ship `golang-go` at Go 1.19. This project requires
+Go 1.23+. Running `apt install golang-go` installs the wrong version and
+`go build` will fail with a directive error.
+
+Check what version you have:
+
+```bash
+go version
+```
+
+If the output is below `go1.23`, remove the system package and install Go
+manually:
+
+```bash
+sudo apt remove golang-go
+```
+
+Download the correct archive for your architecture. For Raspberry Pi (64-bit):
+
+```bash
+wget https://go.dev/dl/go1.23.8.linux-arm64.tar.gz
+sudo tar -C /usr/local -xzf go1.23.8.linux-arm64.tar.gz
+```
+
+For 32-bit Pi OS (uncommon but possible):
+
+```bash
+wget https://go.dev/dl/go1.23.8.linux-armv6l.tar.gz
+sudo tar -C /usr/local -xzf go1.23.8.linux-armv6l.tar.gz
+```
+
+Add Go to your PATH:
+
+```bash
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
+source ~/.profile
+```
+
+Verify:
+
+```bash
+go version
+# should print: go version go1.23.x linux/arm64
+```
+
+Then build normally:
+
+```bash
+make build
+```
+
+### Module resolution fails: `cannot find module providing ...`
+
+If `go build` or `make build` reports something like:
+
+```
+cannot find module providing github.com/luisadrianpuga/sentinel/internal/sentinel
+```
+
+Go is not finding `go.mod`. This means you are either not in the repo root or
+your checkout is incomplete.
+
+Verify your location and module state:
+
+```bash
+pwd
+# should be /home/<user>/sentinel
+
+go env GOMOD
+# should print: /home/<user>/sentinel/go.mod
+# if empty, Go cannot find go.mod — you are in the wrong directory
+```
+
+Check that the internal package exists:
+
+```bash
+ls internal/sentinel
+# should list: config.go  runner_linux.go  runner_other.go  store.go
+```
+
+If `go env GOMOD` is empty, navigate to the repo root and retry:
+
+```bash
+cd ~/sentinel
+go env GOMOD   # should now show the path
+make build
+```
+
+If `internal/sentinel` is missing, your checkout is incomplete:
+
+```bash
+git status
+git rev-parse --abbrev-ref HEAD
+git pull
+```
+
+After pulling, verify the directory exists and retry the build.
 
 ## Roadmap
 
